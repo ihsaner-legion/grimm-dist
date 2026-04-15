@@ -1,14 +1,31 @@
-desc: grimm master (spectral analysis for grimm assistant)
+desc: grimm master (spectral + K-weighted analysis for grimm assistant)
 // @description grimm master
 // @author ihsan
-// @version 0.0.3
-// @about Audio-thread spectral analysis for grimm. Installs to
-//   <REAPER>/Effects/grimm/grimm_master.jsfx via ReaPack. Do not add I/O here.
+// @version 0.0.4
+// @about Audio-thread spectral + K-weighted loudness analysis for grimm.
+//   Installs to <REAPER>/Effects/grimm/grimm_master.jsfx via ReaPack.
+//   Do not add I/O here.
 // @provides [effect] .
+
+//
 
 options:gmem=grimm
 
 @init
+  // --- BS.1770 K-weighting biquad coefficients (48 kHz reference) ---
+  // ITU-R BS.1770-4 §4.1, Table 1 — pre-filter (high-shelf ~1.5 kHz, +4 dB)
+  KWEIGHT1_COEFF_B0 = 1.53512485958697;
+  KWEIGHT1_COEFF_B1 = -2.69169618940638;
+  KWEIGHT1_COEFF_B2 = 1.19839281085285;
+  KWEIGHT1_COEFF_A1 = -1.69065929318241;
+  KWEIGHT1_COEFF_A2 = 0.73248077421585;
+  // ITU-R BS.1770-4 §4.1, Table 2 — RLB high-pass (~38 Hz)
+  KWEIGHT2_COEFF_B0 = 1.0;
+  KWEIGHT2_COEFF_B1 = -2.0;
+  KWEIGHT2_COEFF_B2 = 1.0;
+  KWEIGHT2_COEFF_A1 = -1.99004745483398;
+  KWEIGHT2_COEFF_A2 = 0.99007225036621;
+
   // --- FFT config ---
   fft_size = 2048;
   half_fft = fft_size / 2;
@@ -30,21 +47,33 @@ options:gmem=grimm
   sum_l2 = 0;          // sum(L²)
   sum_r2 = 0;          // sum(R²)
 
+  // K-weighting biquad state (per channel, per stage)
+  // Stage 1: x1_L1, x2_L1, y1_L1, y2_L1, and _R1 for right.
+  // Stage 2: x1_L2, x2_L2, y1_L2, y2_L2, and _R2 for right.
+  x1_L1 = 0; x2_L1 = 0; y1_L1 = 0; y2_L1 = 0;
+  x1_R1 = 0; x2_R1 = 0; y1_R1 = 0; y2_R1 = 0;
+  x1_L2 = 0; x2_L2 = 0; y1_L2 = 0; y2_L2 = 0;
+  x1_R2 = 0; x2_R2 = 0; y1_R2 = 0; y2_R2 = 0;
+
+  // K-weighted mean-square accumulator (reset each window).
+  k_sum_sq = 0;
+
   seq_ctr = 0;
 
   // gmem layout — init all slots
-  gmem[0] = 0;   // seq
-  gmem[1] = 0;   // rms
+  gmem[0] = 0;    // seq
+  gmem[1] = 0;    // rms
   gmem[2] = fft_size; // n (FFT window size)
   gmem[3] = srate;    // sr
-  gmem[4] = 0;   // band_sub
-  gmem[5] = 0;   // band_low_mid
-  gmem[6] = 0;   // band_mid
-  gmem[7] = 0;   // band_high_mid
-  gmem[8] = 0;   // band_high
-  gmem[9] = 0;   // peak_l
-  gmem[10] = 0;  // peak_r
-  gmem[11] = 0;  // phase_corr
+  gmem[4] = 0;    // band_sub
+  gmem[5] = 0;    // band_low_mid
+  gmem[6] = 0;    // band_mid
+  gmem[7] = 0;    // band_high_mid
+  gmem[8] = 0;    // band_high
+  gmem[9] = 0;    // peak_l
+  gmem[10] = 0;   // peak_r
+  gmem[11] = 0;   // phase_corr
+  gmem[12] = 0;   // ms_k (mean-square of K-weighted stereo over window)
 
 @sample
   // --- Accumulate into ring buffer ---
@@ -65,6 +94,43 @@ options:gmem=grimm
   sum_l2 += spl0 * spl0;
   sum_r2 += spl1 * spl1;
 
+  // --- K-weighting cascade (per channel, stage 1 → stage 2) ---
+  // Biquad: y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2
+  // Stage 1, left:
+  kL1 = KWEIGHT1_COEFF_B0 * spl0
+      + KWEIGHT1_COEFF_B1 * x1_L1
+      + KWEIGHT1_COEFF_B2 * x2_L1
+      - KWEIGHT1_COEFF_A1 * y1_L1
+      - KWEIGHT1_COEFF_A2 * y2_L1;
+  x2_L1 = x1_L1; x1_L1 = spl0;
+  y2_L1 = y1_L1; y1_L1 = kL1;
+  // Stage 2, left:
+  kL = KWEIGHT2_COEFF_B0 * kL1
+     + KWEIGHT2_COEFF_B1 * x1_L2
+     + KWEIGHT2_COEFF_B2 * x2_L2
+     - KWEIGHT2_COEFF_A1 * y1_L2
+     - KWEIGHT2_COEFF_A2 * y2_L2;
+  x2_L2 = x1_L2; x1_L2 = kL1;
+  y2_L2 = y1_L2; y1_L2 = kL;
+  // Stage 1, right:
+  kR1 = KWEIGHT1_COEFF_B0 * spl1
+      + KWEIGHT1_COEFF_B1 * x1_R1
+      + KWEIGHT1_COEFF_B2 * x2_R1
+      - KWEIGHT1_COEFF_A1 * y1_R1
+      - KWEIGHT1_COEFF_A2 * y2_R1;
+  x2_R1 = x1_R1; x1_R1 = spl1;
+  y2_R1 = y1_R1; y1_R1 = kR1;
+  // Stage 2, right:
+  kR = KWEIGHT2_COEFF_B0 * kR1
+     + KWEIGHT2_COEFF_B1 * x1_R2
+     + KWEIGHT2_COEFF_B2 * x2_R2
+     - KWEIGHT2_COEFF_A1 * y1_R2
+     - KWEIGHT2_COEFF_A2 * y2_R2;
+  x2_R2 = x1_R2; x1_R2 = kR1;
+  y2_R2 = y1_R2; y1_R2 = kR;
+  // Per-channel mean-square summed across L and R per BS.1770-4 §4.2.
+  k_sum_sq += kL * kL + kR * kR;
+
   buf_pos += 1;
 
   // --- When buffer is full, run FFT and publish ---
@@ -82,9 +148,11 @@ options:gmem=grimm
       phase_corr_val = 0;
     );
 
+    // K-weighted mean-square over the window (sum of per-sample kL² + kR²
+    // divided by window length in samples).
+    ms_k_val = k_sum_sq / fft_size;
+
     // --- FFT ---
-    // Copy mono buffer into FFT workspace (real parts).
-    // JSFX fft() expects interleaved [re, im] pairs, so we set im = 0.
     i = 0;
     loop(fft_size,
       buf_fft[2 * i]     = buf_mono[i];
@@ -96,8 +164,6 @@ options:gmem=grimm
     fft_permute(buf_fft, fft_size);
 
     // --- Band energy from magnitude spectrum ---
-    // Bin k corresponds to frequency k * srate / fft_size.
-    // We sum magnitude² (re² + im²) per band.
     band_sub = 0;
     band_low_mid = 0;
     band_mid = 0;
@@ -129,8 +195,6 @@ options:gmem=grimm
       k += 1;
     );
 
-    // Normalize band energies by number of bins in each band to get
-    // average energy per bin (makes bands comparable regardless of width).
     bins_sub      = max(floor(200 / hz_per_bin), 1);
     bins_low_mid  = max(floor(500 / hz_per_bin) - floor(200 / hz_per_bin), 1);
     bins_mid      = max(floor(2000 / hz_per_bin) - floor(500 / hz_per_bin), 1);
@@ -156,8 +220,9 @@ options:gmem=grimm
     gmem[9]  = peak_l_val;
     gmem[10] = peak_r_val;
     gmem[11] = phase_corr_val;
+    gmem[12] = ms_k_val;
 
-    // --- Reset for next window ---
+    // --- Reset for next window (biquad state persists, only block accumulators reset) ---
     buf_pos = 0;
     rms_sq = 0;
     peak_l_val = 0;
@@ -165,4 +230,5 @@ options:gmem=grimm
     sum_lr = 0;
     sum_l2 = 0;
     sum_r2 = 0;
+    k_sum_sq = 0;
   );

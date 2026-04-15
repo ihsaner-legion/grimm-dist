@@ -1,6 +1,6 @@
 -- @description grimm: start assistant
 -- @author ihsan
--- @version 0.0.3
+-- @version 0.0.4
 -- @about Starts the grimm mix assistant: launches the grimm app, attaches
 --   grimm_master.jsfx to the master bus, and streams analysis data. Re-run
 --   this action to stop and tear down.
@@ -44,7 +44,7 @@ local function log(msg)
   reaper.ShowConsoleMsg("[grimm] " .. msg .. "\n")
 end
 
-log("starting grimm v0.0.3")
+log("starting grimm v0.0.4")
 
 -- ---------- launch the Tauri app ----------
 -- We use `open -a grimm` so macOS LaunchServices resolves the app path
@@ -201,6 +201,7 @@ local function reap()
   local peak_l    = reaper.gmem_read(9)
   local peak_r    = reaper.gmem_read(10)
   local phase_c   = reaper.gmem_read(11)
+  local ms_k      = reaper.gmem_read(12)
 
   -- Compensate for master fader: JSFX sees pre-fader signal,
   -- so scale peaks by the fader gain to reflect post-fader reality.
@@ -211,12 +212,12 @@ local function reap()
 
   if pipe and n > 0 then
     local line = string.format(
-      '{"v":2,"seq":%d,"rms":%.6f,"n":%d,"sr":%d,'
+      '{"v":3,"seq":%d,"rms":%.6f,"n":%d,"sr":%d,'
       .. '"bands":{"sub":%.6f,"low_mid":%.6f,"mid":%.6f,"high_mid":%.6f,"high":%.6f},'
-      .. '"peak_l":%.6f,"peak_r":%.6f,"phase_corr":%.6f}\n',
+      .. '"peak_l":%.6f,"peak_r":%.6f,"phase_corr":%.6f,"ms_k":%.9f}\n',
       seq, rms, n, sr,
       band_sub, band_lm, band_mid, band_hm, band_hi,
-      peak_l, peak_r, phase_c
+      peak_l, peak_r, phase_c, ms_k
     )
     local ok, err = pipe:write(line)
     if ok then
