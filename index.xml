@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="grimm" commit="018acdcb1d99006ca575fc94768a9ec51e21364a">
+<index version="1" name="grimm" commit="980ce32bba11d3bf6ed0312639c6947fd2f077f2">
   <category name="packages">
-    <reapack name="grimm_master.jsfx" type="effect" desc="grimm master (spectral analysis for grimm assistant)">
+    <reapack name="grimm_master.jsfx" type="effect" desc="grimm master (spectral + K-weighted analysis for grimm assistant)">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Audio-thread spectral analysis for grimm. Installs to /Effects/grimm/grimm_master.jsfx via ReaPack. Do not add I/O here.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Audio-thread spectral + K-weighted loudness analysis for grimm. Installs to /Effects/grimm/grimm_master.jsfx via ReaPack. Do not add I/O here.\par}
 }
 ]]></description>
       </metadata>
       <version name="0.0.3" author="ihsan" time="2026-04-14T18:58:10Z">
         <source type="effect">https://github.com/ihsaner-legion/grimm-dist/raw/018acdcb1d99006ca575fc94768a9ec51e21364a/packages/grimm_master.jsfx</source>
+      </version>
+      <version name="0.0.4" author="ihsan" time="2026-04-15T12:33:54Z">
+        <source type="effect">https://github.com/ihsaner-legion/grimm-dist/raw/980ce32bba11d3bf6ed0312639c6947fd2f077f2/packages/grimm_master.jsfx</source>
       </version>
     </reapack>
     <reapack name="grimm_start.lua" type="script" desc="grimm: start assistant">
@@ -27,6 +30,9 @@
       </metadata>
       <version name="0.0.3" author="ihsan" time="2026-04-14T18:58:10Z">
         <source main="main">https://github.com/ihsaner-legion/grimm-dist/raw/018acdcb1d99006ca575fc94768a9ec51e21364a/packages/grimm_start.lua</source>
+      </version>
+      <version name="0.0.4" author="ihsan" time="2026-04-15T12:33:54Z">
+        <source main="main">https://github.com/ihsaner-legion/grimm-dist/raw/980ce32bba11d3bf6ed0312639c6947fd2f077f2/packages/grimm_start.lua</source>
       </version>
     </reapack>
   </category>
