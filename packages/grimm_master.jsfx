@@ -1,11 +1,13 @@
 desc: grimm master (spectral + K-weighted analysis for grimm assistant)
 // @description grimm master
 // @author ihsan
-// @version 0.0.4
+// @version 0.0.6
 // @about Audio-thread spectral + K-weighted loudness analysis for grimm.
 //   Installs to <REAPER>/Effects/grimm/grimm_master.jsfx via ReaPack.
 //   Do not add I/O here.
 // @provides [effect] .
+
+slider1:slot=0<0,127,1>-
 
 //
 
@@ -60,20 +62,47 @@ options:gmem=grimm
 
   seq_ctr = 0;
 
-  // gmem layout — init all slots
-  gmem[0] = 0;    // seq
-  gmem[1] = 0;    // rms
-  gmem[2] = fft_size; // n (FFT window size)
-  gmem[3] = srate;    // sr
-  gmem[4] = 0;    // band_sub
-  gmem[5] = 0;    // band_low_mid
-  gmem[6] = 0;    // band_mid
-  gmem[7] = 0;    // band_high_mid
-  gmem[8] = 0;    // band_high
-  gmem[9] = 0;    // peak_l
-  gmem[10] = 0;   // peak_r
-  gmem[11] = 0;   // phase_corr
-  gmem[12] = 0;   // ms_k (mean-square of K-weighted stereo over window)
+  base = slot * 32;
+
+  // gmem layout — init this slot's 32-slot region to zero.
+  gmem[base + 0]  = 0;    // seq
+  gmem[base + 1]  = 0;    // rms
+  gmem[base + 2]  = fft_size; // n
+  gmem[base + 3]  = srate;    // sr
+  gmem[base + 4]  = 0;    // band_sub
+  gmem[base + 5]  = 0;    // band_low_mid
+  gmem[base + 6]  = 0;    // band_mid
+  gmem[base + 7]  = 0;    // band_high_mid
+  gmem[base + 8]  = 0;    // band_high
+  gmem[base + 9]  = 0;    // peak_l
+  gmem[base + 10] = 0;    // peak_r
+  gmem[base + 11] = 0;    // phase_corr
+  gmem[base + 12] = 0;    // ms_k
+  i = 13;
+  loop(19, gmem[base + i] = 0; i += 1;);
+
+@slider
+  new_base = slot * 32;
+  new_base != base ? (
+    // Zero the previously-owned slot so Lua doesn't read stale cells.
+    i = 0;
+    loop(32, gmem[base + i] = 0; i += 1;);
+    base = new_base;
+  );
+  // Reset window accumulators on slot change (or just at instance birth).
+  rms_sq = 0;
+  peak_l_val = 0;
+  peak_r_val = 0;
+  sum_lr = 0;
+  sum_l2 = 0;
+  sum_r2 = 0;
+  k_sum_sq = 0;
+  buf_pos = 0;
+  // Reset K-weighting biquad state — cleanest for a re-home.
+  x1_L1 = 0; x2_L1 = 0; y1_L1 = 0; y2_L1 = 0;
+  x1_R1 = 0; x2_R1 = 0; y1_R1 = 0; y2_R1 = 0;
+  x1_L2 = 0; x2_L2 = 0; y1_L2 = 0; y2_L2 = 0;
+  x1_R2 = 0; x2_R2 = 0; y1_R2 = 0; y2_R2 = 0;
 
 @sample
   // --- Accumulate into ring buffer ---
@@ -208,19 +237,19 @@ options:gmem=grimm
     band_high     /= bins_high;
 
     // --- Publish to gmem ---
-    gmem[0]  = seq_ctr;
-    gmem[1]  = rms_val;
-    gmem[2]  = fft_size;
-    gmem[3]  = srate;
-    gmem[4]  = band_sub;
-    gmem[5]  = band_low_mid;
-    gmem[6]  = band_mid;
-    gmem[7]  = band_high_mid;
-    gmem[8]  = band_high;
-    gmem[9]  = peak_l_val;
-    gmem[10] = peak_r_val;
-    gmem[11] = phase_corr_val;
-    gmem[12] = ms_k_val;
+    gmem[base + 0]  = seq_ctr;
+    gmem[base + 1]  = rms_val;
+    gmem[base + 2]  = fft_size;
+    gmem[base + 3]  = srate;
+    gmem[base + 4]  = band_sub;
+    gmem[base + 5]  = band_low_mid;
+    gmem[base + 6]  = band_mid;
+    gmem[base + 7]  = band_high_mid;
+    gmem[base + 8]  = band_high;
+    gmem[base + 9]  = peak_l_val;
+    gmem[base + 10] = peak_r_val;
+    gmem[base + 11] = phase_corr_val;
+    gmem[base + 12] = ms_k_val;
 
     // --- Reset for next window (biquad state persists, only block accumulators reset) ---
     buf_pos = 0;
