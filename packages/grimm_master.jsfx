@@ -1,7 +1,7 @@
 desc: grimm master (spectral + K-weighted analysis for grimm assistant)
 // @description grimm master
 // @author ihsan
-// @version 0.0.6
+// @version 0.0.7
 // @about Audio-thread spectral + K-weighted loudness analysis for grimm.
 //   Installs to <REAPER>/Effects/grimm/grimm_master.jsfx via ReaPack.
 //   Do not add I/O here.

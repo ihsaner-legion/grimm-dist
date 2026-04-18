@@ -1,10 +1,12 @@
 -- @description grimm: start assistant
 -- @author ihsan
--- @version 0.0.6
+-- @version 0.0.7
 -- @about Starts the grimm mix assistant: launches the grimm app, attaches
 --   grimm_master.jsfx to the master bus, and streams analysis data. Re-run
 --   this action to stop and tear down.
--- @provides [main] .
+-- @provides
+--   [main] .
+--   [nomain windows] grimm-pipe.exe
 
 -- Matches Reaper's TrackFX_GetFXName output for our JSFX. Reaper derives the
 -- display name from the `desc:` line ("grimm master", space) — not the filename
@@ -54,18 +56,30 @@ local function log(msg)
   reaper.ShowConsoleMsg("[grimm] " .. msg .. "\n")
 end
 
-log("starting grimm v0.0.6")
+log("starting grimm v0.0.7")
 
 -- ---------- launch the Tauri app ----------
--- We use `open -a grimm` so macOS LaunchServices resolves the app path
--- regardless of /Applications vs ~/Applications. If the app isn't
--- installed, `open` exits non-zero and we bail cleanly.
 local function launch_app()
+  local os_id = reaper.GetOS()
+  local is_windows = (os_id:sub(1, 3) == "Win")
+
+  if is_windows then
+    -- Windows: no reliable auto-launch in v0.0.7. NSIS installs grimm.exe
+    -- but doesn't register it for `start <name>` resolution, and spawning
+    -- cmd.exe pops a visible console. Skip auto-launch — the user launches
+    -- grimm from the Start Menu (installed) or runs grimm.exe directly
+    -- (dev). try_connect() will surface "connection refused" on
+    -- 127.0.0.1:51789 if the app isn't running.
+    return true
+  end
+
+  -- macOS path (unchanged): `open -a grimm` uses LaunchServices, returning
+  -- non-zero if the app isn't installed — we surface that as a user-visible
+  -- error so they know to install the DMG.
   local proc = io.popen("open -a grimm 2>&1; echo __rc=$?", "r")
   if not proc then return false, "io.popen failed" end
   local output = proc:read("*a") or ""
   proc:close()
-  -- `open` writes errors to stderr; we capture both streams and check rc.
   local rc = output:match("__rc=(%d+)") or "1"
   if rc ~= "0" then
     return false, output
@@ -166,8 +180,7 @@ if not attach_jsfx() then
   return
 end
 
--- ---------- socket state (io.popen + nc) ----------
-local SOCK_PATH = "/tmp/grimm.sock"
+-- ---------- socket state (io.popen + nc / grimm-pipe) ----------
 
 local pipe = nil
 local connected = false
@@ -179,9 +192,26 @@ local last_cap_warn_log = 0
 local WARN_LOG_INTERVAL = 1.0
 
 local function try_connect()
-  local p, e = io.popen("nc -U " .. SOCK_PATH, "w")
-  if not p then return nil, e end
-  return p
+  local os_id = reaper.GetOS()
+  local is_windows = (os_id:sub(1, 3) == "Win")
+
+  local pipe, err
+  if is_windows then
+    -- grimm-pipe.exe ships alongside this script in the ReaPack payload.
+    -- We resolve an absolute path here because cmd.exe's CWD is not
+    -- guaranteed to be the script's directory — when ReaPack installs the
+    -- package into a category subfolder (e.g. Scripts\grimm\), a bare
+    -- "grimm-pipe.exe" invocation fails PATH lookup. Deriving from
+    -- get_action_context() handles any subfolder layout.
+    local _, script_path = reaper.get_action_context()
+    local script_dir = script_path:match("(.*[\\/])") or ""
+    local helper = script_dir .. "grimm-pipe.exe"
+    pipe, err = io.popen('"' .. helper .. '" 127.0.0.1 51789', "w")
+  else
+    pipe, err = io.popen("nc 127.0.0.1 51789", "w")
+  end
+  if not pipe then return nil, err or "io.popen failed" end
+  return pipe
 end
 
 local function disconnect(reason)
@@ -487,7 +517,7 @@ local function reap()
       pipe = p
       if not connected then
         connected = true
-        log("connected to " .. SOCK_PATH)
+        log("connected to 127.0.0.1:51789")
         -- Guarantee track_state arrives before audio on every (re)connect.
         force_track_state_snapshot = true
       end
