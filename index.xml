@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="grimm" commit="3cdb17d3bc4b511842cd4f1e9209aee0e2113b4d">
+<index version="1" name="grimm" commit="ec090ebbbfd11b35b854ae131a8fec09e565a824">
   <category name="packages">
     <reapack name="grimm_master.jsfx" type="effect" desc="grimm master (spectral + K-weighted analysis for grimm assistant)">
       <metadata>
@@ -20,6 +20,9 @@
       <version name="0.0.6" author="ihsan" time="2026-04-16T20:42:03Z">
         <source type="effect">https://github.com/ihsaner-legion/grimm-dist/raw/3cdb17d3bc4b511842cd4f1e9209aee0e2113b4d/packages/grimm_master.jsfx</source>
       </version>
+      <version name="0.0.7" author="ihsan" time="2026-04-18T13:24:35Z">
+        <source type="effect">https://github.com/ihsaner-legion/grimm-dist/raw/ec090ebbbfd11b35b854ae131a8fec09e565a824/packages/grimm_master.jsfx</source>
+      </version>
     </reapack>
     <reapack name="grimm_start.lua" type="script" desc="grimm: start assistant">
       <metadata>
@@ -39,6 +42,10 @@
       </version>
       <version name="0.0.6" author="ihsan" time="2026-04-16T20:42:03Z">
         <source main="main">https://github.com/ihsaner-legion/grimm-dist/raw/3cdb17d3bc4b511842cd4f1e9209aee0e2113b4d/packages/grimm_start.lua</source>
+      </version>
+      <version name="0.0.7" author="ihsan" time="2026-04-18T13:24:35Z">
+        <source main="main">https://github.com/ihsaner-legion/grimm-dist/raw/ec090ebbbfd11b35b854ae131a8fec09e565a824/packages/grimm_start.lua</source>
+        <source platform="windows" file="grimm-pipe.exe">https://github.com/ihsaner-legion/grimm-dist/raw/ec090ebbbfd11b35b854ae131a8fec09e565a824/packages/grimm-pipe.exe</source>
       </version>
     </reapack>
   </category>
